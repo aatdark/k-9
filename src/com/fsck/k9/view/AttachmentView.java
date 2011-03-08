@@ -33,7 +33,10 @@ import com.fsck.k9.helper.MediaScannerNotifier;
 import com.fsck.k9.helper.SizeFormatter;
 import com.fsck.k9.helper.Utility;
 import com.fsck.k9.mail.Message;
+import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.Part;
+import com.fsck.k9.mail.internet.BinaryTempFileBody;
+import com.fsck.k9.mail.internet.MimeBodyPart;
 import com.fsck.k9.mail.internet.MimeUtility;
 import com.fsck.k9.mail.store.LocalStore.LocalAttachmentBodyPart;
 import com.fsck.k9.provider.AttachmentProvider;
@@ -43,7 +46,7 @@ public class AttachmentView extends FrameLayout {
     private Context mContext;
     public Button viewButton;
     public Button downloadButton;
-    public LocalAttachmentBodyPart part;
+    public MimeBodyPart part;
     private Message mMessage;
     private Account mAccount;
     private MessagingController mController;
@@ -83,7 +86,7 @@ public class AttachmentView extends FrameLayout {
     }
     public boolean populateFromPart(Part inputPart, Message message, Account account, MessagingController controller, MessagingListener listener) {
         try {
-            part = (LocalAttachmentBodyPart) inputPart;
+            part = (MimeBodyPart) inputPart;
 
             contentType = MimeUtility.unfoldAndDecode(part.getContentType());
             String contentDisposition = MimeUtility.unfoldAndDecode(part.getDisposition());
@@ -101,8 +104,24 @@ public class AttachmentView extends FrameLayout {
             mController = controller;
             mListener = listener;
 
-            size = Integer.parseInt(MimeUtility.getHeaderParameter(contentDisposition, "size"));
-            contentType = MimeUtility.getMimeTypeForViewing(part.getMimeType(), name);
+            String sizeString = MimeUtility.getHeaderParameter(
+                                    contentDisposition, "size");
+            if (sizeString != null) {
+                size = Integer.parseInt(sizeString);
+            }
+
+            if (size == 0) {
+                if (part.getBody() instanceof BinaryTempFileBody) {
+                    BinaryTempFileBody tmpFileBody = (BinaryTempFileBody) part
+                                                     .getBody();
+                    size = tmpFileBody.getSize();
+                }
+            }
+
+            contentType = part.getMimeType();
+            if (MimeUtility.DEFAULT_ATTACHMENT_MIME_TYPE.equalsIgnoreCase(contentType)) {
+                contentType = MimeUtility.getMimeTypeByExtension(name);
+            }
             TextView attachmentName = (TextView) findViewById(R.id.attachment_name);
             TextView attachmentInfo = (TextView) findViewById(R.id.attachment_info);
             ImageView attachmentIcon = (ImageView) findViewById(R.id.attachment_icon);
@@ -119,6 +138,12 @@ public class AttachmentView extends FrameLayout {
             if (size > K9.MAX_ATTACHMENT_DOWNLOAD_SIZE) {
                 viewButton.setVisibility(View.GONE);
                 downloadButton.setVisibility(View.GONE);
+            }
+
+            // TODO: Provide non LocalStore Attachments (e.g. PGP/Mime) via
+            // ContentProvider
+            if (!(part instanceof LocalAttachmentBodyPart)) {
+                viewButton.setVisibility(View.GONE);
             }
 
             viewButton.setOnClickListener(new OnClickListener() {
@@ -165,12 +190,8 @@ public class AttachmentView extends FrameLayout {
 
     private Bitmap getPreviewIcon() {
         try {
-            return BitmapFactory.decodeStream(
-                       mContext.getContentResolver().openInputStream(
-                           AttachmentProvider.getAttachmentThumbnailUri(mAccount,
-                                   part.getAttachmentId(),
-                                   62,
-                                   62)));
+
+            return BitmapFactory.decodeStream(mContext.getContentResolver().openInputStream(AttachmentProvider.getAttachmentThumbnailUri(mAccount, ((LocalAttachmentBodyPart) part).getAttachmentId(), 62, 62)));
         } catch (Exception e) {
             /*
              * We don't care what happened, we just return null for the preview icon.
@@ -197,9 +218,16 @@ public class AttachmentView extends FrameLayout {
     public void writeFile(File directory) {
         try {
             File file = Utility.createUniqueFile(directory, name);
-            Uri uri = AttachmentProvider.getAttachmentUri(mAccount, part.getAttachmentId());
-            InputStream in = mContext.getContentResolver().openInputStream(uri);
             OutputStream out = new FileOutputStream(file);
+            InputStream in;
+            if (part instanceof LocalAttachmentBodyPart) {
+
+                Uri uri = AttachmentProvider.getAttachmentUri(mAccount,((LocalAttachmentBodyPart) part).getAttachmentId());
+
+                in = mContext.getContentResolver().openInputStream(uri);
+            } else {
+                in = part.getBody().getInputStream();
+            }
             IOUtils.copy(in, out);
             out.flush();
             out.close();
@@ -207,6 +235,8 @@ public class AttachmentView extends FrameLayout {
             attachmentSaved(file.toString());
             new MediaScannerNotifier(mContext, file);
         } catch (IOException ioe) {
+            attachmentNotSaved();
+        } catch (MessagingException e) {
             attachmentNotSaved();
         }
     }
@@ -237,16 +267,22 @@ public class AttachmentView extends FrameLayout {
 
 
     public void showFile() {
-        Uri uri = AttachmentProvider.getAttachmentUriForViewing(mAccount, part.getAttachmentId());
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.setData(uri);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        try {
-            mContext.startActivity(intent);
-        } catch (Exception e) {
-            Log.e(K9.LOG_TAG, "Could not display attachment of type " + contentType, e);
-            Toast toast = Toast.makeText(mContext, mContext.getString(R.string.message_view_no_viewer, contentType), Toast.LENGTH_LONG);
-            toast.show();
+        if (part instanceof LocalAttachmentBodyPart) {
+	        Uri uri = AttachmentProvider.getAttachmentUri(mAccount, ((LocalAttachmentBodyPart) part).getAttachmentId());
+	        Intent intent = new Intent(Intent.ACTION_VIEW);
+	        intent.setData(uri);
+	        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+	        try {
+	            mContext.startActivity(intent);
+	        } catch (Exception e) {
+	            Log.e(K9.LOG_TAG, "Could not display attachment of type " + contentType, e);
+	            Toast toast = Toast.makeText(mContext, mContext.getString(R.string.message_view_no_viewer, contentType), Toast.LENGTH_LONG);
+	            toast.show();
+        	} 
+        } else {
+            Toast.makeText(mContext,
+                           "Cannot view attachment, try downloading the file", 10)
+            .show();
         }
     }
 
@@ -267,8 +303,12 @@ public class AttachmentView extends FrameLayout {
             // nothing to do
             return;
         }
+        if (!(part instanceof LocalAttachmentBodyPart)) {
+            return;
+        }
+
         try {
-            Uri uri = AttachmentProvider.getAttachmentUriForViewing(mAccount, part.getAttachmentId());
+            Uri uri = AttachmentProvider.getAttachmentUri(mAccount, ((LocalAttachmentBodyPart) part).getAttachmentId());
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setData(uri);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);

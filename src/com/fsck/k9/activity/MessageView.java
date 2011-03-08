@@ -1290,4 +1290,9 @@ public class MessageView extends K9Activity implements OnClickListener {
         mMessageView.loadBodyFromText(mAccount.getCryptoProvider(), mPgpData, mMessage, mPgpData.getDecryptedData(), "text/plain");
     }
 
+    public void onDecryptDone(PgpData pgpData, Message message) {
+        mPgpData = pgpData;
+        displayMessageBody(mAccount, "", "", message);
+    }
+
 }

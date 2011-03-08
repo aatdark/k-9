@@ -56,6 +56,7 @@ import com.fsck.k9.mail.internet.MimeMessage;
 import com.fsck.k9.mail.internet.MimeMultipart;
 import com.fsck.k9.mail.internet.MimeUtility;
 import com.fsck.k9.mail.internet.TextBody;
+import com.fsck.k9.mail.store.LocalStore.LocalAttachmentBodyPart;
 import com.fsck.k9.mail.store.LockableDatabase.DbCallback;
 import com.fsck.k9.mail.store.LockableDatabase.WrappedException;
 import com.fsck.k9.mail.store.StorageManager.StorageProvider;
@@ -1626,6 +1627,8 @@ public class LocalStore extends Store implements Serializable {
                                                 MimeMultipart alternativeParts = mp;
                                                 alternativeParts.setSubType("alternative");
                                                 mp = new MimeMultipart();
+                                                //preserve SubType
+                                                mp.setSubType(mimeType.toLowerCase().replaceFirst("^multipart/", ""));
                                                 mp.addBodyPart(new MimeBodyPart(alternativeParts));
                                             }
                                         } else if (mimeType != null && mimeType.equalsIgnoreCase("text/plain")) {
@@ -1712,6 +1715,16 @@ public class LocalStore extends Store implements Serializable {
                                                              String.format("%s;\n name=\"%s\"",
                                                                            type,
                                                                            name));
+                                                // fix for PGP/Mime TODO: save
+                                                // CONTENT_TRANSFER_ENCODING value
+                                                // in database
+                                                if (type.startsWith("application/pgp-encrypted")
+                                                        || (type.startsWith("application/octet-stream"))
+                                                        || type.startsWith("application/pgp-signature")) {
+                                                    bp.setHeader(MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "8bit");
+                                                } else {
+                                                    bp.setHeader(MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "base64");
+                                                } 
                                                 bp.setHeader(MimeHeader.HEADER_CONTENT_DISPOSITION,
                                                              String.format("%s;\n filename=\"%s\";\n size=%d",
                                                                            contentDisposition,
@@ -3354,6 +3367,10 @@ public class LocalStore extends Store implements Serializable {
         public LocalAttachmentBodyPart(Body body, long attachmentId) throws MessagingException {
             super(body);
             mAttachmentId = attachmentId;
+
+            if (body instanceof LocalAttachmentBody) {
+                ((LocalAttachmentBody) body).setParent(this);
+            }
         }
 
         /**
@@ -3375,6 +3392,8 @@ public class LocalStore extends Store implements Serializable {
     }
 
     public static class LocalAttachmentBody implements Body {
+        public LocalAttachmentBodyPart parent = null;
+
         private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
         private Application mApplication;
         private Uri mUri;
@@ -3382,6 +3401,11 @@ public class LocalStore extends Store implements Serializable {
         public LocalAttachmentBody(Uri uri, Application application) {
             mApplication = application;
             mUri = uri;
+        }
+
+        public void setParent(LocalAttachmentBodyPart parent) {
+            this.parent = parent;
+
         }
 
         public InputStream getInputStream() throws MessagingException {
@@ -3398,6 +3422,15 @@ public class LocalStore extends Store implements Serializable {
 
         public void writeTo(OutputStream out) throws IOException, MessagingException {
             InputStream in = getInputStream();
+            if (parent != null) {
+                String[] contentTransferEncodingHeader = parent
+                        .getHeader(MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING);
+                if (contentTransferEncodingHeader[0].equals("8bit")) {
+                    IOUtils.copy(in, out);
+                    return;
+                }
+            }
+            // default is Base64
             Base64OutputStream base64Out = new Base64OutputStream(out);
             IOUtils.copy(in, base64Out);
             base64Out.close();
