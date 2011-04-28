@@ -18,6 +18,7 @@ import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
@@ -374,7 +375,10 @@ public class ImapStore extends Store {
             if (ImapResponseParser.equalsIgnoreCase(response.get(0), commandResponse)) {
                 boolean includeFolder = true;
                 String folder = decodeFolderName(response.getString(3));
-
+                if (folder == null) {
+                    //malformed foldername - ignore this folder
+                    continue;
+                }
                 if (mPathDelimeter == null) {
                     mPathDelimeter = response.getString(2);
                     mCombinedPrefix = null;
@@ -395,7 +399,7 @@ public class ImapStore extends Store {
                         if (folder.length() >= getCombinedPrefix().length()) {
                             folder = folder.substring(getCombinedPrefix().length());
                         }
-                        if (!decodeFolderName(response.getString(3)).equalsIgnoreCase(getCombinedPrefix() + folder)) {
+                        if (!folder.equalsIgnoreCase(getCombinedPrefix() + folder)) {
                             includeFolder = false;
                         }
                     }
@@ -507,6 +511,13 @@ public class ImapStore extends Store {
              * exist we're totally screwed.
              */
             throw new RuntimeException("Unable to decode folder name: " + name, uee);
+        } catch (CharacterCodingException e) {
+            /*
+             * This will get thrown if the mutf7 foldername is malformed
+             * the fallback is to return the plain string instead
+             */
+            Log.w(K9.LOG_TAG, "Can not mutf7 decode the foldername : " + name, e);
+            return null;
         }
     }
 
