@@ -582,7 +582,13 @@ public class ImapStore extends Store {
             }
         }
 
-        private String interalgetPrefixedName(boolean doEncoding) throws MessagingException {
+        /**
+         * returns the prefix + foldername (+ optional mutf7 encoding)
+         * @param doEncoding when true then the result will be encoded mutf7
+         * @return the combined string
+         * @throws MessagingException
+         */
+        public String getPrefixedName(boolean doEncoding) throws MessagingException {
             String prefixedName = "";
             if (!mAccount.getInboxFolderName().equalsIgnoreCase(mName)) {
                 ImapConnection connection = null;
@@ -620,16 +626,7 @@ public class ImapStore extends Store {
          * @throws MessagingException
          */
         public String getPrefixedEncodedName() throws MessagingException {
-            return interalgetPrefixedName(true);
-        }
-        /**
-         * returns the prefixed name of the folder WIHTOUT mutf7 encoding
-         * @see {getPrefixedEncodedName}
-         * @return unencoded mutf7 string
-         * @throws MessagingException
-         */
-        public String getPrefixedName() throws MessagingException {
-            return interalgetPrefixedName(false);
+            return getPrefixedName(true);
         }
 
         protected List<ImapResponse> executeSimpleCommand(String command) throws MessagingException, IOException {
@@ -1798,7 +1795,7 @@ public class ImapStore extends Store {
 
         private void checkOpen() throws MessagingException {
             if (!isOpen()) {
-                throw new MessagingException("Folder " + getPrefixedName() + " is not open.");
+                throw new MessagingException("Folder " + getPrefixedName(false) + " is not open.");
             }
         }
 
