@@ -141,6 +141,15 @@ public abstract class Folder {
 
     public abstract String getName();
 
+    /**
+     * returns the unchanged name sent by the server
+     * default implementation is to return null
+     * @return e.q mutf7 string for imapfolders, null if not overloaded
+     */
+    public String getRawName() {
+        return null;
+    }
+
     public abstract Flag[] getPermanentFlags();
 
     /**

@@ -18,7 +18,11 @@ import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CodingErrorAction;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -214,7 +218,8 @@ public class ImapStore extends Store {
     /**
      * Charset used for converting folder names to and from UTF-7 as defined by RFC 3501.
      */
-    private Charset mModifiedUtf7Charset;
+    private CharsetDecoder mModifiedUtf7CharsetDecoder;
+    private CharsetEncoder mModifiedUtf7CharsetEncoder;
 
     /**
      * Cache of ImapFolder objects. ImapFolders are attached to a given folder on the server
@@ -293,16 +298,21 @@ public class ImapStore extends Store {
             }
         }
 
-        mModifiedUtf7Charset = new CharsetProvider().charsetForName("X-RFC-3501");
+        Charset mutf7  =  new CharsetProvider().charsetForName("X-RFC-3501");
+        mModifiedUtf7CharsetDecoder = mutf7.newDecoder().onMalformedInput(CodingErrorAction.REPORT);
+        mModifiedUtf7CharsetEncoder = mutf7.newEncoder().onMalformedInput(CodingErrorAction.REPORT);
     }
 
     @Override
     public Folder getFolder(String name) {
+        return getFolder(name, null);
+    }
+    public Folder getFolder(String name, String rawname) {
         ImapFolder folder;
         synchronized (mFolderCache) {
             folder = mFolderCache.get(name);
             if (folder == null) {
-                folder = new ImapFolder(this, name);
+                folder = new ImapFolder(this, name, rawname);
                 mFolderCache.put(name, folder);
             }
         }
@@ -373,7 +383,8 @@ public class ImapStore extends Store {
         for (ImapResponse response : responses) {
             if (ImapResponseParser.equalsIgnoreCase(response.get(0), commandResponse)) {
                 boolean includeFolder = true;
-                String folder = decodeFolderName(response.getString(3));
+                String rawFolder = response.getString(3);
+                String folder = decodeFolderName(rawFolder);
 
                 if (mPathDelimeter == null) {
                     mPathDelimeter = response.getString(2);
@@ -395,7 +406,7 @@ public class ImapStore extends Store {
                         if (folder.length() >= getCombinedPrefix().length()) {
                             folder = folder.substring(getCombinedPrefix().length());
                         }
-                        if (!decodeFolderName(response.getString(3)).equalsIgnoreCase(getCombinedPrefix() + folder)) {
+                        if (!folder.equalsIgnoreCase(getCombinedPrefix() + folder)) {
                             includeFolder = false;
                         }
                     }
@@ -409,7 +420,7 @@ public class ImapStore extends Store {
                     }
                 }
                 if (includeFolder) {
-                    folders.add(getFolder(folder));
+                    folders.add(getFolder(folder, rawFolder));
                 }
             }
         }
@@ -477,37 +488,15 @@ public class ImapStore extends Store {
         return "\"" + str.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
-    private String encodeFolderName(String name) {
-        try {
-            ByteBuffer bb = mModifiedUtf7Charset.encode(name);
-            byte[] b = new byte[bb.limit()];
-            bb.get(b);
-            return new String(b, "US-ASCII");
-        } catch (UnsupportedEncodingException uee) {
-            /*
-             * The only thing that can throw this is getBytes("US-ASCII") and if US-ASCII doesn't
-             * exist we're totally screwed.
-             */
-            throw new RuntimeException("Unable to encode folder name: " + name, uee);
-        }
-    }
 
+    @Deprecated
     private String decodeFolderName(String name) {
-        /*
-         * Convert the encoded name to US-ASCII, then pass it through the modified UTF-7
-         * decoder and return the Unicode String.
+        /**
+         * we use this method as workaround, because ImapFolder is a subclass of ImapStore
+         * and can therefor not provide any static service functions
          */
-        try {
-            byte[] encoded = name.getBytes("US-ASCII");
-            CharBuffer cb = mModifiedUtf7Charset.decode(ByteBuffer.wrap(encoded));
-            return cb.toString();
-        } catch (UnsupportedEncodingException uee) {
-            /*
-             * The only thing that can throw this is getBytes("US-ASCII") and if US-ASCII doesn't
-             * exist we're totally screwed.
-             */
-            throw new RuntimeException("Unable to decode folder name: " + name, uee);
-        }
+        ImapFolder f = new ImapFolder(null, null, null);
+        return f.decodeFolderName(name);
     }
 
     @Override
@@ -530,7 +519,14 @@ public class ImapStore extends Store {
 
 
     class ImapFolder extends Folder {
+
+
         private String mName;
+
+        /**
+         * the name as sent by the server (undecoded)
+         */
+        private String mNameRaw;
         protected volatile int mMessageCount = -1;
         protected volatile int uidNext = -1;
         protected volatile ImapConnection mConnection;
@@ -539,14 +535,69 @@ public class ImapStore extends Store {
         private ImapStore store = null;
         Map<Integer, String> msgSeqUidMap = new ConcurrentHashMap<Integer, String>();
 
-
-        public ImapFolder(ImapStore nStore, String name) {
+        public ImapFolder(ImapStore nStore, String name, String rawname) {
             super(nStore.getAccount());
             store = nStore;
+
             this.mName = name;
+            if (rawname == null) {
+                this.mNameRaw = encodeFolderName(name);
+            } else {
+                this.mNameRaw = rawname;
+            }
         }
 
-        public String getPrefixedName() throws MessagingException {
+
+
+
+        public String decodeFolderName(String name) {
+            /*
+             * Convert the encoded name to US-ASCII, then pass it through the modified UTF-7
+             * decoder and return the Unicode String.
+             */
+            try {
+                byte[] encoded = name.getBytes("US-ASCII");
+                CharBuffer cb = mModifiedUtf7CharsetDecoder.decode(ByteBuffer.wrap(encoded));
+                return cb.toString();
+            } catch (UnsupportedEncodingException uee) {
+                /*
+                 * The only thing that can throw this is getBytes("US-ASCII") and if US-ASCII doesn't
+                 * exist we're totally screwed.
+                 */
+                throw new RuntimeException("Unable to decode folder name: " + name, uee);
+            } catch (CharacterCodingException e) {
+                /*
+                 * This will get thrown if the mutf7 foldername is malformed
+                 * the fallback is to return the plain string instead
+                 */
+                Log.w(K9.LOG_TAG, "Can not mutf7 decode the foldername : " + name, e);
+                return name;
+            }
+        }
+
+        private String encodeFolderName(String name) {
+            try {
+                ByteBuffer bb = mModifiedUtf7CharsetEncoder.encode(CharBuffer.wrap(name));
+                byte[] b = new byte[bb.limit()];
+                bb.get(b);
+                return new String(b, "US-ASCII");
+            } catch (UnsupportedEncodingException uee) {
+                /*
+                 * The only thing that can throw this is getBytes("US-ASCII") and if US-ASCII doesn't
+                 * exist we're totally screwed.
+                 */
+                throw new RuntimeException("Unable to encode folder name: " + name, uee);
+            } catch (CharacterCodingException e) {
+                /*
+                 * This will get thrown if the mutf7 foldername is malformed
+                 * the fallback is to return the plain string instead
+                 */
+                Log.w(K9.LOG_TAG, "Can not mutf7 decode the foldername : " + name, e);
+                return name;
+            }
+        }
+
+        private String interalgetPrefixedName(boolean doEncoding) throws MessagingException {
             String prefixedName = "";
             if (!mAccount.getInboxFolderName().equalsIgnoreCase(mName)) {
                 ImapConnection connection = null;
@@ -569,9 +620,31 @@ public class ImapStore extends Store {
                 }
                 prefixedName = getCombinedPrefix();
             }
+            if (doEncoding) {
+                prefixedName = encodeFolderName(prefixedName);
+                prefixedName += mNameRaw;
+            } else {
+                prefixedName += mName;
+            }
 
-            prefixedName += mName;
             return prefixedName;
+        }
+        /**
+         * returns the already mutf7 encoded name
+         * @return mutf7 encoded name
+         * @throws MessagingException
+         */
+        public String getPrefixedEncodedName() throws MessagingException {
+            return interalgetPrefixedName(true);
+        }
+        /**
+         * returns the prefixed name of the folder WIHTOUT mutf7 encoding
+         * @see {getPrefixedEncodedName}
+         * @return unencoded mutf7 string
+         * @throws MessagingException
+         */
+        public String getPrefixedName() throws MessagingException {
+            return interalgetPrefixedName(false);
         }
 
         protected List<ImapResponse> executeSimpleCommand(String command) throws MessagingException, IOException {
@@ -619,7 +692,7 @@ public class ImapStore extends Store {
             try {
                 msgSeqUidMap.clear();
                 String command = String.format((mode == OpenMode.READ_WRITE ? "SELECT" : "EXAMINE") + " %s",
-                                               encodeString(encodeFolderName(getPrefixedName())));
+                                               encodeString(getPrefixedEncodedName()));
 
                 List<ImapResponse> responses = executeSimpleCommand(command);
 
@@ -737,7 +810,7 @@ public class ImapStore extends Store {
             }
             try {
                 connection.executeSimpleCommand(String.format("STATUS %s (UIDVALIDITY)",
-                                                encodeString(encodeFolderName(getPrefixedName()))));
+                                                encodeString(getPrefixedEncodedName())));
                 mExists = true;
                 return true;
             } catch (MessagingException me) {
@@ -768,7 +841,7 @@ public class ImapStore extends Store {
             }
             try {
                 connection.executeSimpleCommand(String.format("CREATE %s",
-                                                encodeString(encodeFolderName(getPrefixedName()))));
+                                                encodeString(getPrefixedEncodedName())));
                 return true;
             } catch (MessagingException me) {
                 return false;
@@ -797,7 +870,7 @@ public class ImapStore extends Store {
                 uids[i] = messages[i].getUid();
             }
             try {
-                String remoteDestName = encodeString(encodeFolderName(iFolder.getPrefixedName()));
+                String remoteDestName = encodeString(iFolder.getPrefixedEncodedName());
 
                 if (!exists(remoteDestName)) {
                     /*
@@ -839,7 +912,7 @@ public class ImapStore extends Store {
                 setFlags(messages, new Flag[] { Flag.DELETED }, true);
             } else {
                 ImapFolder remoteTrashFolder = (ImapFolder)getStore().getFolder(trashFolderName);
-                String remoteTrashName = encodeString(encodeFolderName(remoteTrashFolder.getPrefixedName()));
+                String remoteTrashName = encodeString(remoteTrashFolder.getPrefixedEncodedName());
 
                 if (!exists(remoteTrashName)) {
                     /*
@@ -1580,7 +1653,7 @@ public class ImapStore extends Store {
                 for (Message message : messages) {
                     mConnection.sendCommand(
                         String.format("APPEND %s (%s) {%d}",
-                                      encodeString(encodeFolderName(getPrefixedName())),
+                                      encodeString(getPrefixedEncodedName()),
                                       combineFlags(message.getFlags()),
                                       message.calculateSize()), false);
                     ImapResponse response;
@@ -1777,6 +1850,12 @@ public class ImapStore extends Store {
             }
             return id;
         }
+
+        @Override
+        public String getRawName() {
+            return mNameRaw;
+        }
+
     }
 
     /**
@@ -2369,7 +2448,7 @@ public class ImapStore extends Store {
         TracingWakeLock wakeLock = null;
 
         public ImapFolderPusher(ImapStore store, String name, PushReceiver nReceiver) {
-            super(store, name);
+            super(store, name, null); //TODO check if this works
             receiver = nReceiver;
             TracingPowerManager pm = TracingPowerManager.getPowerManager(receiver.getContext());
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ImapFolderPusher " + store.getAccount().getDescription() + ":" + getName());
