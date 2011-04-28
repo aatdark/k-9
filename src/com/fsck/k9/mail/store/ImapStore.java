@@ -495,6 +495,7 @@ public class ImapStore extends Store {
 
     private String encodeFolderName(String name) {
         try {
+            mModifiedUtf7CharsetEncoder.reset();
             ByteBuffer bb = mModifiedUtf7CharsetEncoder.encode(CharBuffer.wrap(name));
             byte[] b = new byte[bb.limit()];
             bb.get(b);
@@ -520,6 +521,7 @@ public class ImapStore extends Store {
          * decoder and return the Unicode String.
          */
         try {
+            mModifiedUtf7CharsetDecoder.reset();
             CharBuffer cb = mModifiedUtf7CharsetDecoder.decode(ByteBuffer.wrap(name.getBytes("US-ASCII")));
             return cb.toString();
         } catch (UnsupportedEncodingException uee) {
