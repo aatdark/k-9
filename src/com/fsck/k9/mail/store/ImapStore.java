@@ -510,9 +510,9 @@ public class ImapStore extends Store {
         }
     }
     private String decodeFolderName(String name) {
-        /*
-         * Convert the encoded name to US-ASCII, then pass it through the modified UTF-7
-         * decoder and return the Unicode String.
+        /**
+         * we use this method as workaround, because ImapFolder is a subclass of ImapStore
+         * and can therefor not provide any static service functions
          */
         try {
             byte[] encoded = name.getBytes("US-ASCII");
