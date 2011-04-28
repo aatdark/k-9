@@ -20,6 +20,9 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CodingErrorAction;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -215,7 +218,8 @@ public class ImapStore extends Store {
     /**
      * Charset used for converting folder names to and from UTF-7 as defined by RFC 3501.
      */
-    private Charset mModifiedUtf7Charset;
+    private CharsetDecoder mModifiedUtf7CharsetDecoder;
+    private CharsetEncoder mModifiedUtf7CharsetEncoder;
 
     /**
      * Cache of ImapFolder objects. ImapFolders are attached to a given folder on the server
@@ -294,7 +298,9 @@ public class ImapStore extends Store {
             }
         }
 
-        mModifiedUtf7Charset = new CharsetProvider().charsetForName("X-RFC-3501");
+        Charset mutf7  =  new CharsetProvider().charsetForName("X-RFC-3501");
+        mModifiedUtf7CharsetDecoder = mutf7.newDecoder().onMalformedInput(CodingErrorAction.REPORT);
+        mModifiedUtf7CharsetEncoder = mutf7.newEncoder().onMalformedInput(CodingErrorAction.REPORT);
     }
 
     @Override
@@ -374,9 +380,15 @@ public class ImapStore extends Store {
         for (ImapResponse response : responses) {
             if (ImapResponseParser.equalsIgnoreCase(response.get(0), commandResponse)) {
                 boolean includeFolder = true;
-                String folder = decodeFolderName(response.getString(3));
-                if (folder == null) {
-                    //malformed foldername - ignore this folder
+                String folder ;
+                try {
+                    folder = decodeFolderName(response.getString(3));
+                } catch (CharacterCodingException e) {
+                    /*
+                     * This will get thrown if the mutf7 folder name is malformed
+                     * we will ignore such folders
+                     */
+                    Log.w(K9.LOG_TAG, "Can not mutf7 decode the foldername : " + response.getString(3), e);
                     continue;
                 }
                 if (mPathDelimeter == null) {
@@ -483,7 +495,7 @@ public class ImapStore extends Store {
 
     private String encodeFolderName(String name) {
         try {
-            ByteBuffer bb = mModifiedUtf7Charset.encode(name);
+            ByteBuffer bb = mModifiedUtf7CharsetEncoder.encode(CharBuffer.wrap(name));
             byte[] b = new byte[bb.limit()];
             bb.get(b);
             return new String(b, "US-ASCII");
@@ -493,17 +505,22 @@ public class ImapStore extends Store {
              * exist we're totally screwed.
              */
             throw new RuntimeException("Unable to encode folder name: " + name, uee);
+        } catch (CharacterCodingException e) {
+            /*
+             * this should never happen, because this means we are creating malformed
+             * mutf7 output
+             */
+            throw new RuntimeException("Unable to encode folder name: " + name, e);
         }
     }
 
-    private String decodeFolderName(String name) {
+    private String decodeFolderName(String name) throws CharacterCodingException {
         /*
          * Convert the encoded name to US-ASCII, then pass it through the modified UTF-7
          * decoder and return the Unicode String.
          */
         try {
-            byte[] encoded = name.getBytes("US-ASCII");
-            CharBuffer cb = mModifiedUtf7Charset.decode(ByteBuffer.wrap(encoded));
+            CharBuffer cb = mModifiedUtf7CharsetDecoder.decode(ByteBuffer.wrap(name.getBytes("US-ASCII")));
             return cb.toString();
         } catch (UnsupportedEncodingException uee) {
             /*
@@ -511,13 +528,6 @@ public class ImapStore extends Store {
              * exist we're totally screwed.
              */
             throw new RuntimeException("Unable to decode folder name: " + name, uee);
-        } catch (CharacterCodingException e) {
-            /*
-             * This will get thrown if the mutf7 foldername is malformed
-             * the fallback is to return the plain string instead
-             */
-            Log.w(K9.LOG_TAG, "Can not mutf7 decode the foldername : " + name, e);
-            return null;
         }
     }
 
