@@ -96,6 +96,7 @@ public class AccountSettings extends K9PreferenceActivity {
     private static final String PREFERENCE_SYNC_REMOTE_DELETIONS = "account_sync_remote_deletetions";
     private static final String PREFERENCE_CRYPTO_APP = "crypto_app";
     private static final String PREFERENCE_CRYPTO_AUTO_SIGNATURE = "crypto_auto_signature";
+    private static final String PREFERENCE_CRYPTO_AUTO_VERIFYDECRYPT = "crypto_auto_verify_decrypt";
 
     private static final String PREFERENCE_LOCAL_STORAGE_PROVIDER = "local_storage_provider";
 
@@ -159,6 +160,7 @@ public class AccountSettings extends K9PreferenceActivity {
     private ListPreference mMaxPushFolders;
     private ListPreference mCryptoApp;
     private CheckBoxPreference mCryptoAutoSignature;
+    private CheckBoxPreference mCryptoAutoVerifyDecrypt;
 
     private ListPreference mLocalStorageProvider;
 
@@ -676,14 +678,18 @@ public class AccountSettings extends K9PreferenceActivity {
         mCryptoAutoSignature = (CheckBoxPreference) findPreference(PREFERENCE_CRYPTO_AUTO_SIGNATURE);
         mCryptoAutoSignature.setChecked(mAccount.getCryptoAutoSignature());
 
+        mCryptoAutoVerifyDecrypt = (CheckBoxPreference) findPreference(PREFERENCE_CRYPTO_AUTO_VERIFYDECRYPT);
+        mCryptoAutoVerifyDecrypt.setChecked(mAccount.getCryptoAutoVerifyEncrypt());
         handleCryptoAppDependencies();
     }
 
     private void handleCryptoAppDependencies() {
         if ("".equals(mCryptoApp.getValue())) {
             mCryptoAutoSignature.setEnabled(false);
+            mCryptoAutoVerifyDecrypt.setEnabled(false);
         } else {
             mCryptoAutoSignature.setEnabled(true);
+            mCryptoAutoVerifyDecrypt.setEnabled(true);
         }
     }
 
@@ -728,6 +734,8 @@ public class AccountSettings extends K9PreferenceActivity {
         mAccount.setReplyAfterQuote(mReplyAfterQuote.isChecked());
         mAccount.setCryptoApp(mCryptoApp.getValue());
         mAccount.setCryptoAutoSignature(mCryptoAutoSignature.isChecked());
+        mAccount.setCryptoAutoVerifyEncrypt(mCryptoAutoVerifyDecrypt.isChecked());
+
         mAccount.setLocalStorageProviderId(mLocalStorageProvider.getValue());
 
         // In webdav account we use the exact folder name also for inbox,
