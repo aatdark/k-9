@@ -787,7 +787,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                     //only do this if we are quoting
                     populateUIWithQuotedMessage(true);
                 } catch (MessagingException e) {
-                    // Hm, if we couldn't populate the UI after source reprocessing, let's just delete it?
+                    showOrHideQuotedText(QuotedTextMode.NONE);
                     Log.e(K9.LOG_TAG, "Could not re-process source message; deleting quoted text to be safe.", e);
                 }
             }
