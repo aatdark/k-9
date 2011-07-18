@@ -63,7 +63,11 @@ public class MimeMultipart extends Multipart {
 
     public void setSubType(String subType) {
         this.mSubType = subType;
-        mContentType = String.format("multipart/%s; boundary=\"%s\"", subType, mBoundary);
+        if (subType.equals("encrypted")) {
+            mContentType = String.format("multipart/%s; protocol=\"application/pgp-encrypted\"; boundary=\"%s\"" , subType, mBoundary);
+        } else {
+            mContentType = String.format("multipart/%s; boundary=\"%s\"", subType, mBoundary);
+        }
     }
 
     public void writeTo(OutputStream out) throws IOException, MessagingException {
