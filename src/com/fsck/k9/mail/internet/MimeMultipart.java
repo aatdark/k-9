@@ -83,7 +83,7 @@ public class MimeMultipart extends Multipart {
           that does not end with a CRLF (line break)
         */
         String boundaryWithCRLF = "\r\n--" + mBoundary + "\r\n";
-        
+        String boundaryWithCRLFEND = "\r\n--" + mBoundary + "--\r\n";
         if (mPreamble != null) {
             writer.write(mPreamble + "\r\n");
         }
@@ -100,7 +100,7 @@ public class MimeMultipart extends Multipart {
             writer.write("\r\n");
         }
 
-        writer.write(boundaryWithCRLF);
+        writer.write(boundaryWithCRLFEND);
         writer.flush();
     }
 
