@@ -190,6 +190,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
     private MessageWebView mQuotedHTML;
     private InsertableHtmlContent mQuotedHtmlContent;   // Container for HTML reply as it's being built.
     private View mEncryptLayout;
+    private View mEncryptMimeLayout;
     private CheckBox mCryptoSignatureCheckbox;
     private CheckBox mEncryptCheckbox;
     private CheckBox mUsePGPMimeCheckbox;
@@ -597,6 +598,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
 
 
         mEncryptLayout = findViewById(R.id.layout_encrypt);
+        mEncryptMimeLayout = findViewById(R.id.layout_pgpmime);
         mCryptoSignatureCheckbox = (CheckBox)findViewById(R.id.cb_crypto_signature);
         mCryptoSignatureUserId = (TextView)findViewById(R.id.userId);
         mCryptoSignatureUserIdRest = (TextView)findViewById(R.id.userIdRest);
@@ -618,12 +620,27 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                         }
                         checkBox.setChecked(false);
                     } else {
+                        if (mEncryptCheckbox.isChecked() == false) {
+                            mEncryptMimeLayout.setVisibility(View.GONE);
+                        }
                         mPgpData.setSignatureKeyId(0);
                         updateEncryptLayout();
                     }
                 }
             });
-
+            mEncryptCheckbox.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    CheckBox checkBox = (CheckBox)v;
+                    if (checkBox.isChecked()) {
+                        mEncryptMimeLayout.setVisibility(View.VISIBLE);
+                    } else {
+                        if (mCryptoSignatureCheckbox.isChecked() == false) {
+                            mEncryptMimeLayout.setVisibility(View.GONE);
+                        }
+                    }
+                }
+            });
             if (mAccount.getCryptoAutoSignature()) {
                 long ids[] = crypto.getSecretKeyIdsFromEmail(this, mIdentity.getEmail());
                 if (ids != null && ids.length > 0) {
@@ -637,6 +654,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             updateEncryptLayout();
         } else {
             mEncryptLayout.setVisibility(View.GONE);
+            mEncryptMimeLayout.setVisibility(View.GONE);
         }
 
         mDraftNeedsSaving = false;
@@ -765,6 +783,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             // if a signature key is selected, then the checkbox itself has no text
             mCryptoSignatureCheckbox.setText("");
             mCryptoSignatureCheckbox.setChecked(true);
+            mEncryptMimeLayout.setVisibility(View.VISIBLE);
             mCryptoSignatureUserId.setVisibility(View.VISIBLE);
             mCryptoSignatureUserIdRest.setVisibility(View.VISIBLE);
             mCryptoSignatureUserId.setText(R.string.unknown_crypto_signature_user_id);
@@ -1069,7 +1088,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
 
             if (mMessageFormat == MessageFormat.HTML) {
                 // HTML message (with alternative text part)
-                
+
                 // This is the compiled MIME part for an HTML message.
                 MimeMultipart composedMimeMessage = new MimeMultipart();
                 composedMimeMessage.setSubType("alternative");   // Let the receiver select either the text or the HTML part.
@@ -1480,13 +1499,13 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             Toast.makeText(this, getString(R.string.message_compose_error_no_recipients), Toast.LENGTH_LONG).show();
             return;
         }
-        
+
         // PGP/Mime signed-only mails are not supported yet
-        if(mUsePGPMimeCheckbox.isChecked() && mCryptoSignatureCheckbox.isChecked() && !mEncryptCheckbox.isChecked()) {
+        if (mUsePGPMimeCheckbox.isChecked() && mCryptoSignatureCheckbox.isChecked() && !mEncryptCheckbox.isChecked()) {
             Toast.makeText(this, getString(R.string.pgp_mime_signed_only_messages_not_supported), Toast.LENGTH_LONG).show();
             return;
         }
-        
+
         if (mEncryptCheckbox.isChecked() && !mPgpData.hasEncryptionKeys()) {
             // key selection before encryption
             String emails = "";
@@ -1537,7 +1556,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                     } catch (MessagingException e) {
                         // TODO Auto-generated catch block
                         e.printStackTrace();
-                    } 
+                    }
                 } else {
                     // use PGP/Inline, String will be encrypted
                     String text = "";
@@ -1625,7 +1644,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
      */
     private void onAddAttachment2(final String mime_type) {
         if (mAccount.getCryptoProvider().isAvailable(this) && (mEncryptCheckbox.isChecked() || mCryptoSignatureCheckbox.isChecked())) {
-            if(!mUsePGPMimeCheckbox.isChecked()) {
+            if (!mUsePGPMimeCheckbox.isChecked()) {
                 Toast.makeText(this, R.string.attachment_encryption_unsupported, Toast.LENGTH_LONG).show();
             }
         }

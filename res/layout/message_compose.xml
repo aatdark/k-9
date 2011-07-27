@@ -181,17 +181,26 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"/>
 
- 					<CheckBox
-                        android:text="@string/btn_use_pgp_mime"
-                        android:id="@+id/cb_pgp_mime"
-                        android:textColor="@android:color/primary_text_light"
-                        android:layout_gravity="center_vertical"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"/>
+ 					
 
                 </LinearLayout>
-
+                <LinearLayout 
+                    android:id="@+id/layout_pgpmime"
+                    android:orientation="horizontal" 
+                    android:layout_width="fill_parent"
+                    android:layout_height="wrap_content" 
+                    android:visibility="gone"
+                    android:paddingLeft="6dip" 
+                    android:paddingRight="6dip">
+                    <CheckBox
+                            android:text="@string/btn_use_pgp_mime"
+                            android:id="@+id/cb_pgp_mime"
+	                        android:textColor="@android:color/primary_text_light"
+	                        android:layout_gravity="center_vertical"
+	                        android:layout_width="wrap_content"
+	                        android:layout_height="wrap_content"
+	                        android:layout_weight="1"/>
+                </LinearLayout>
                 <EditText
                     android:id="@+id/subject"
                     android:layout_width="fill_parent"
