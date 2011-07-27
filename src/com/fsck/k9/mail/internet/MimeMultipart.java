@@ -66,7 +66,11 @@ public class MimeMultipart extends Multipart {
         if (subType.equals("encrypted")) {
             mContentType = String.format("multipart/%s; protocol=\"application/pgp-encrypted\"; boundary=\"%s\"" , subType, mBoundary);
         } else {
-            mContentType = String.format("multipart/%s; boundary=\"%s\"", subType, mBoundary);
+            if (subType.equals("signed")) {
+                mContentType = String.format("multipart/%s; protocol=\"application/pgp-signature\"; micalg=pgp-sha1; boundary=\"%s\"" , subType, mBoundary);
+            } else {
+                mContentType = String.format("multipart/%s; boundary=\"%s\"", subType, mBoundary);
+            }
         }
     }
 

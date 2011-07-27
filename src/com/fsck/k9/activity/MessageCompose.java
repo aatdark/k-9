@@ -1500,7 +1500,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             return;
         }
 
-        // PGP/Mime signed-only mails are not supported yet
+        // TODO PGP/Mime signed-only mails are not supported yet
         if (mUsePGPMimeCheckbox.isChecked() && mCryptoSignatureCheckbox.isChecked() && !mEncryptCheckbox.isChecked()) {
             Toast.makeText(this, getString(R.string.pgp_mime_signed_only_messages_not_supported), Toast.LENGTH_LONG).show();
             return;
