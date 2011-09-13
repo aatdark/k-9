@@ -780,8 +780,10 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             mCryptoSignatureUserId.setVisibility(View.INVISIBLE);
             mCryptoSignatureUserIdRest.setVisibility(View.INVISIBLE);
         } else {
-            //we force plain text, when the user wants to reply + sign
-            if (mMessageFormat != MessageFormat.TEXT && mQuotedTextBar.getVisibility() == View.VISIBLE) {
+            //we force plain text, when the user wants to sign (without MIME)
+            if (mMessageFormat != MessageFormat.TEXT
+                    && (mCryptoSignatureCheckbox.isChecked() || mEncryptCheckbox
+                        .isChecked()) && !mUsePGPMimeCheckbox.isChecked()) {
                 mMessageFormat = MessageFormat.TEXT;
                 try {
                     //only do this if we are quoting
@@ -1065,197 +1067,200 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
      * @throws MessagingException
      */
     private MimeMessage createMessage(boolean isDraft) throws MessagingException {
-    	MimeMessage message = new MimeMessage();
-    	message.addSentDate(new Date());
-    	Address from = new Address(mIdentity.getEmail(), mIdentity.getName());
-    	message.setFrom(from);
-    	message.setRecipients(RecipientType.TO, getAddresses(mToView));
-    	message.setRecipients(RecipientType.CC, getAddresses(mCcView));
-    	message.setRecipients(RecipientType.BCC, getAddresses(mBccView));
-    	message.setSubject(mSubjectView.getText().toString());
-    	if (mReadReceipt) {
-    		message.setHeader("Disposition-Notification-To", from.toEncodedString());
-    		message.setHeader("X-Confirm-Reading-To", from.toEncodedString());
-    		message.setHeader("Return-Receipt-To", from.toEncodedString());
-    	}
-    	message.setHeader("User-Agent", getString(R.string.message_header_mua));
+        MimeMessage message = new MimeMessage();
+        message.addSentDate(new Date());
+        Address from = new Address(mIdentity.getEmail(), mIdentity.getName());
+        message.setFrom(from);
+        message.setRecipients(RecipientType.TO, getAddresses(mToView));
+        message.setRecipients(RecipientType.CC, getAddresses(mCcView));
+        message.setRecipients(RecipientType.BCC, getAddresses(mBccView));
+        message.setSubject(mSubjectView.getText().toString());
+        if (mReadReceipt) {
+            message.setHeader("Disposition-Notification-To", from.toEncodedString());
+            message.setHeader("X-Confirm-Reading-To", from.toEncodedString());
+            message.setHeader("Return-Receipt-To", from.toEncodedString());
+        }
+        message.setHeader("User-Agent", getString(R.string.message_header_mua));
 
-    	final String replyTo = mIdentity.getReplyTo();
-    	if (replyTo != null) {
-    		message.setReplyTo(new Address[] { new Address(replyTo) });
-    	}
+        final String replyTo = mIdentity.getReplyTo();
+        if (replyTo != null) {
+            message.setReplyTo(new Address[] { new Address(replyTo) });
+        }
 
-    	if (mInReplyTo != null) {
-    		message.setInReplyTo(mInReplyTo);
-    	}
+        if (mInReplyTo != null) {
+            message.setInReplyTo(mInReplyTo);
+        }
 
-    	if (mReferences != null) {
-    		message.setReferences(mReferences);
-    	}
-    	// returns false if we use pgp/mime encryption which is already done
-    	if (!mUsePGPMimeCheckbox.isChecked()
-    			|| mPgpData.getEncryptedData() == null) {
+        if (mReferences != null) {
+            message.setReferences(mReferences);
+        }
+        // returns false if we use pgp/mime encryption which is already done
+        if (!mUsePGPMimeCheckbox.isChecked()
+                || mPgpData.getEncryptedData() == null) {
 
-    		// Build the body.
-    		// TODO FIXME - body can be either an HTML or Text part, depending on whether we're in HTML mode or not.  Should probably fix this so we don't mix up html and text parts.
-    		TextBody body = null;
-    		boolean inlineGPG = false;
-    		if (mPgpData.getEncryptedData() != null) {
-    			String text = mPgpData.getEncryptedData();
-    			body = new TextBody(text);
-    			inlineGPG = true;
-    		} else {
-    			body = buildText(isDraft);
-    		}
+            // Build the body.
+            // TODO FIXME - body can be either an HTML or Text part, depending on whether we're in HTML mode or not.  Should probably fix this so we don't mix up html and text parts.
+            TextBody body = null;
+            boolean inlineGPG = false;
+            if (mPgpData.getEncryptedData() != null) {
+                String text = mPgpData.getEncryptedData();
+                body = new TextBody(text);
+                inlineGPG = true;
+            } else {
+                body = buildText(isDraft);
+            }
 
-    		final boolean hasAttachments = mAttachments.getChildCount() > 0;
+            final boolean hasAttachments = mAttachments.getChildCount() > 0;
 
-    		if (mMessageFormat == MessageFormat.HTML && !inlineGPG) {
-    			// HTML message (with alternative text part)
+            if (mMessageFormat == MessageFormat.HTML && !inlineGPG) {
+                // HTML message (with alternative text part)
 
-    			// This is the compiled MIME part for an HTML message.
-    			MimeMultipart composedMimeMessage = new MimeMultipart();
-    			composedMimeMessage.setSubType("alternative");   // Let the receiver select either the text or the HTML part.
-    			composedMimeMessage.addBodyPart(new MimeBodyPart(body, "text/html"));
-    			composedMimeMessage.addBodyPart(new MimeBodyPart(new TextBody(HtmlConverter.htmlToText(body.getText())), "text/plain"));
+                // This is the compiled MIME part for an HTML message.
+                MimeMultipart composedMimeMessage = new MimeMultipart();
+                composedMimeMessage.setSubType("alternative");   // Let the receiver select either the text or the HTML part.
+                composedMimeMessage.addBodyPart(new MimeBodyPart(body, "text/html"));
+                composedMimeMessage.addBodyPart(new MimeBodyPart(new TextBody(HtmlConverter.htmlToText(body.getText())), "text/plain"));
 
-    			if (hasAttachments) {
-    				// If we're HTML and have attachments, we have a MimeMultipart container to hold the
-    				// whole message (mp here), of which one part is a MimeMultipart container
-    				// (composedMimeMessage) with the user's composed messages, and subsequent parts for
-    				// the attachments.
-    				MimeMultipart mp = new MimeMultipart();
-    				mp.addBodyPart(new MimeBodyPart(composedMimeMessage));
-    				addAttachmentsToMessage(mp);
-    				message.setBody(mp);
-    			} else {
-    				// Text-only message.
-    				if (hasAttachments) {
-    					MimeMultipart mp = new MimeMultipart();
-    					mp.addBodyPart(new MimeBodyPart(body, "text/plain"));
-    					addAttachmentsToMessage(mp);
-    					message.setBody(mp);
-    				} else {
-    					// No attachments to include, just stick the text body in the message and call it good.
-    					message.setBody(body);
-    				}
-    			}
+                if (hasAttachments) {
+                    // If we're HTML and have attachments, we have a MimeMultipart container to hold the
+                    // whole message (mp here), of which one part is a MimeMultipart container
+                    // (composedMimeMessage) with the user's composed messages, and subsequent parts for
+                    // the attachments.
+                    MimeMultipart mp = new MimeMultipart();
+                    mp.addBodyPart(new MimeBodyPart(composedMimeMessage));
+                    addAttachmentsToMessage(mp);
+                    message.setBody(mp);
+                } else {
+                    // If no attachments, our multipart/alternative part is the only one we need.
+                    message.setBody(composedMimeMessage);
+                }
+            } else {
+                // Text-only message.
+                if (hasAttachments) {
+                    MimeMultipart mp = new MimeMultipart();
+                    mp.addBodyPart(new MimeBodyPart(body, "text/plain"));
+                    addAttachmentsToMessage(mp);
+                    message.setBody(mp);
+                } else {
+                    // No attachments to include, just stick the text body in the message and call it good.
+                    message.setBody(body);
+                }
+            }
 
-    			// If this is a draft, add metadata for thawing.
-    			if (isDraft) {
-    				// Add the identity to the message.
-    				message.addHeader(K9.IDENTITY_HEADER, buildIdentityHeader(body));
-    			}
-    		} else {
-    			// Build PGP/Mime message
-    			if (mEncryptCheckbox.isChecked()) {
-    				// PGP/Mime encrypted message
+            // If this is a draft, add metadata for thawing.
+            if (isDraft) {
+                // Add the identity to the message.
+                message.addHeader(K9.IDENTITY_HEADER, buildIdentityHeader(body));
+            }
+        } else {
+            // Build PGP/Mime message
+            if (mEncryptCheckbox.isChecked()) {
+                // PGP/Mime encrypted message
 
-    				MimeMultipart mp = new MimeMultipart();
+                MimeMultipart mp = new MimeMultipart();
 
-    				// the first BodyPart of a PGP/Mime message is just the version
-    				// String.
+                // the first BodyPart of a PGP/Mime message is just the version
+                // String.
 
-    				String version = "Version: 1";
+                String version = "Version: 1";
 
-    				TextBody firstBodyPart = new TextBody(version);
-    				MimeBodyPart firstMimeBody = new MimeBodyPart(firstBodyPart,
-    						"application/pgp-encrypted");
-    				firstMimeBody.addHeader(MimeHeader.HEADER_CONTENT_DISPOSITION,
-    				"attachment");
+                TextBody firstBodyPart = new TextBody(version);
+                MimeBodyPart firstMimeBody = new MimeBodyPart(firstBodyPart,
+                        "application/pgp-encrypted");
+                firstMimeBody.addHeader(MimeHeader.HEADER_CONTENT_DISPOSITION,
+                                        "attachment");
 
-    				// this value will be overwritten in LocalStore..
-    				// if parts get base64encoded, they won't be accepted as
-    				// PGP/Mime message
-    				firstMimeBody.setHeader(
-    						MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "7bit");
+                // this value will be overwritten in LocalStore..
+                // if parts get base64encoded, they won't be accepted as
+                // PGP/Mime message
+                firstMimeBody.setHeader(
+                    MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "7bit");
 
-    				mp.addBodyPart(firstMimeBody);
+                mp.addBodyPart(firstMimeBody);
 
-    				// the second BodyPart of a PGP/Mime message is the encrypted
-    				// data as a file
+                // the second BodyPart of a PGP/Mime message is the encrypted
+                // data as a file
 
-    				TextBody secondBodyPart = new TextBody(
-    						mPgpData.getEncryptedData());
-    				MimeBodyPart secondMimeBody = new MimeBodyPart(secondBodyPart,
-    				"application/octet-stream; name=\"encrypted.asc\"");
-    				secondMimeBody.addHeader(MimeHeader.HEADER_CONTENT_DISPOSITION,
-    				"inline; filename=\"encrypted.asc\"");
+                TextBody secondBodyPart = new TextBody(
+                    mPgpData.getEncryptedData());
+                MimeBodyPart secondMimeBody = new MimeBodyPart(secondBodyPart,
+                        "application/octet-stream; name=\"encrypted.asc\"");
+                secondMimeBody.addHeader(MimeHeader.HEADER_CONTENT_DISPOSITION,
+                                         "inline; filename=\"encrypted.asc\"");
 
-    				// this value will be overwritten in LocalStore..
-    				// if parts get base64encoded, they won't be accepted as
-    				// PGP/Mime message
-    				secondMimeBody.setHeader(
-    						MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "7bit");
+                // this value will be overwritten in LocalStore..
+                // if parts get base64encoded, they won't be accepted as
+                // PGP/Mime message
+                secondMimeBody.setHeader(
+                    MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "7bit");
 
-    				mp.addBodyPart(secondMimeBody);
+                mp.addBodyPart(secondMimeBody);
 
-    				message.setBody(mp);
+                message.setBody(mp);
 
-    				// TODO: when message is stored in LocalStore, the protocol
-    				// attribute is lost (thunderbird, kontact and k-9 mail don't
-    				// care)
-    				message.setHeader(MimeHeader.HEADER_CONTENT_TYPE,
-    				"multipart/encrypted; protocol=\"application/pgp-encrypted\"");
-    			} else if (mCryptoSignatureCheckbox.isChecked()) {
-    				// PGP/Mime only signature, no encryption
+                // TODO: when message is stored in LocalStore, the protocol
+                // attribute is lost (thunderbird, kontact and k-9 mail don't
+                // care)
+                message.setHeader(MimeHeader.HEADER_CONTENT_TYPE,
+                                  "multipart/encrypted; protocol=\"application/pgp-encrypted\"");
+            } else if (mCryptoSignatureCheckbox.isChecked()) {
+                // PGP/Mime only signature, no encryption
 
-    				// encryptedData contains Data + PGP Signature
-    				String encryptedData = mPgpData.getEncryptedData();
+                // encryptedData contains Data + PGP Signature
+                String encryptedData = mPgpData.getEncryptedData();
 
-    				// so we need to split it:
-    				String[] parts = encryptedData
-    				.split("-----BEGIN PGP SIGNATURE-----");
+                // so we need to split it:
+                String[] parts = encryptedData
+                                 .split("-----BEGIN PGP SIGNATURE-----");
 
-    				String signature = "-----BEGIN PGP SIGNATURE-----" + parts[1];
+                String signature = "-----BEGIN PGP SIGNATURE-----" + parts[1];
 
-    				MimeMultipart mp = new MimeMultipart();
+                MimeMultipart mp = new MimeMultipart();
 
-    				Body signedMessageBody = mPGPMimeSignedMessage.getBody();
+                Body signedMessageBody = mPGPMimeSignedMessage.getBody();
 
-    				if (signedMessageBody instanceof MimeMultipart) {
-    					MimeMultipart mimeMulti = (MimeMultipart) signedMessageBody;
-    					MimeBodyPart mimeBody = new MimeBodyPart(mimeMulti,
-    							mimeMulti.getContentType());
-    					mp.addBodyPart(mimeBody);
-    				} else if (signedMessageBody instanceof TextBody) {
-    					MimeBodyPart mimeBody = new MimeBodyPart(
-    							(TextBody) signedMessageBody, "text/plain");
-    					mp.addBodyPart(mimeBody);
-    				}
+                if (signedMessageBody instanceof MimeMultipart) {
+                    MimeMultipart mimeMulti = (MimeMultipart) signedMessageBody;
+                    MimeBodyPart mimeBody = new MimeBodyPart(mimeMulti,
+                            mimeMulti.getContentType());
+                    mp.addBodyPart(mimeBody);
+                } else if (signedMessageBody instanceof TextBody) {
+                    MimeBodyPart mimeBody = new MimeBodyPart(
+                        (TextBody) signedMessageBody, "text/plain");
+                    mp.addBodyPart(mimeBody);
+                }
 
-    				// the second BodyPart of a PGP/Mime signed message is the
-    				// signature data as a file
-    				TextBody secondBodyPart = new TextBody(signature);
-    				MimeBodyPart secondMimeBody = new MimeBodyPart(secondBodyPart,
-    				"application/pgp-signature; name=\"signature.asc\"");
-    				secondMimeBody.addHeader(MimeHeader.HEADER_CONTENT_DISPOSITION,
-    				"attachment; filename=\"signature.asc\"");
+                // the second BodyPart of a PGP/Mime signed message is the
+                // signature data as a file
+                TextBody secondBodyPart = new TextBody(signature);
+                MimeBodyPart secondMimeBody = new MimeBodyPart(secondBodyPart,
+                        "application/pgp-signature; name=\"signature.asc\"");
+                secondMimeBody.addHeader(MimeHeader.HEADER_CONTENT_DISPOSITION,
+                                         "attachment; filename=\"signature.asc\"");
 
-    				// this value will be overwritten in LocalStore..
-    				// if parts get base64encoded, they won't be accepted as
-    				// PGP/Mime message
-    				secondMimeBody.setHeader(
-    						MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "7bit");
+                // this value will be overwritten in LocalStore..
+                // if parts get base64encoded, they won't be accepted as
+                // PGP/Mime message
+                secondMimeBody.setHeader(
+                    MimeHeader.HEADER_CONTENT_TRANSFER_ENCODING, "7bit");
 
-    				mp.addBodyPart(secondMimeBody);
+                mp.addBodyPart(secondMimeBody);
 
-    				mp.setSubType("signed");
+                mp.setSubType("signed");
 
-    				message.setBody(mp);
+                message.setBody(mp);
 
-    				// TODO: when message is stored in LocalStore, the protocol
-    				// attribute is lost (thunderbird, kontact and k-9 mail don't
-    				// care)
-    				message.setHeader(MimeHeader.HEADER_CONTENT_TYPE,
-    				"multipart/signed; protocol=\"application/pgp-signature\"");
+                // TODO: when message is stored in LocalStore, the protocol
+                // attribute is lost (thunderbird, kontact and k-9 mail don't
+                // care)
+                message.setHeader(MimeHeader.HEADER_CONTENT_TYPE,
+                                  "multipart/signed; protocol=\"application/pgp-signature\"");
 
-    			} else {
-    				// TODO: this should not be possible!!
-    			}
-    		}
-    	}
-    	return message;
+            } else {
+                // TODO: this should not be possible!!
+            }
+        }
+        return message;
     }
 
     /**
@@ -1579,7 +1584,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                     }
                 } else {
                     // use PGP/Inline, String will be encrypted
-                	String text = buildText(false, MessageFormat.TEXT).getText();
+                    String text = buildText(false, MessageFormat.TEXT).getText();
                     mPreventDraftSaving = true;
                     if (!mAccount.getCryptoProvider().encrypt(this, text,
                             mPgpData)) {
