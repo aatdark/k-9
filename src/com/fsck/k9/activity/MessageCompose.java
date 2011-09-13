@@ -787,7 +787,9 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                 mMessageFormat = MessageFormat.TEXT;
                 try {
                     //only do this if we are quoting
-                    populateUIWithQuotedMessage(true);
+                    if (mSourceMessage != null) {
+                        populateUIWithQuotedMessage(mAccount.isDefaultQuotedTextShown());
+                    }
                 } catch (MessagingException e) {
                     showOrHideQuotedText(QuotedTextMode.NONE);
                     Log.e(K9.LOG_TAG, "Could not re-process source message; deleting quoted text to be safe.", e);
