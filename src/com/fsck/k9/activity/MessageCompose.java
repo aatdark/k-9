@@ -1158,7 +1158,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                 firstMimeBody.addHeader(MimeHeader.HEADER_CONTENT_DISPOSITION,
                                         "attachment");
 
-                // this value will be overwritten in LocalStore..
+                // TODO this value will be overwritten in LocalStore..
                 // if parts get base64encoded, they won't be accepted as
                 // PGP/Mime message
                 firstMimeBody.setHeader(
@@ -1176,7 +1176,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
                 secondMimeBody.addHeader(MimeHeader.HEADER_CONTENT_DISPOSITION,
                                          "inline; filename=\"encrypted.asc\"");
 
-                // this value will be overwritten in LocalStore..
+                // TODO this value will be overwritten in LocalStore..
                 // if parts get base64encoded, they won't be accepted as
                 // PGP/Mime message
                 secondMimeBody.setHeader(
