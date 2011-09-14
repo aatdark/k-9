@@ -593,23 +593,18 @@ public class Apg extends CryptoProvider {
 
     @Override
     public boolean isEncrypted(Message message) {
-        //check for PGP/Mime Encryption:
-        Part pgp;
-        try {
-            pgp = MimeUtility.findFirstPartByMimeType(message,
-                       "application/pgp-encrypted");
-            if (pgp != null) {
-                return true;
-            }
-        } catch (MessagingException e1) {
-        }
-
-        //check for PGP/Inline Encryption:      
         String data = null;
         try {
-            Part part = MimeUtility.findFirstPartByMimeType(message, "text/plain");
-            if (part == null) {
-                part = MimeUtility.findFirstPartByMimeType(message, "text/html");
+            //check for PGP/Mime Encryption:
+            Part part = MimeUtility.findFirstPartByMimeType(message, "application/pgp-encrypted");
+            if (part != null) {
+                return true;
+            } else {
+                //check for PGP/Inline Encryption:
+                part = MimeUtility.findFirstPartByMimeType(message, "text/plain");
+                if (part == null) {
+                    part = MimeUtility.findFirstPartByMimeType(message, "text/html");
+                }
             }
             if (part != null) {
                 data = MimeUtility.getTextFromPart(part);
@@ -631,9 +626,16 @@ public class Apg extends CryptoProvider {
     public boolean isSigned(Message message) {
         String data = null;
         try {
-            Part part = MimeUtility.findFirstPartByMimeType(message, "text/plain");
-            if (part == null) {
-                part = MimeUtility.findFirstPartByMimeType(message, "text/html");
+            // check for PGP/Mime Encryption:
+            Part part = MimeUtility.findFirstPartByMimeType(message, "application/pgp-signature");
+            if (part != null) {
+                return true;
+            } else {
+                //check for PGP/Inline Encryption:
+                part = MimeUtility.findFirstPartByMimeType(message, "text/plain");
+                if (part == null) {
+                    part = MimeUtility.findFirstPartByMimeType(message, "text/html");
+                }
             }
             if (part != null) {
                 data = MimeUtility.getTextFromPart(part);
