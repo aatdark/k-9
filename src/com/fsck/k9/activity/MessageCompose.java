@@ -1528,10 +1528,6 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             }
         }
 
-        if (mUsePGPMimeCheckbox.isChecked() && mCryptoSignatureCheckbox.isChecked() && !mEncryptCheckbox.isChecked()) {
-            Toast.makeText(this, getString(R.string.pgp_mime_signed_only_messages_not_supported), Toast.LENGTH_LONG).show();
-            return;
-        }
 
         if (mEncryptCheckbox.isChecked() && !mPgpData.hasEncryptionKeys()) {
             // key selection before encryption
