@@ -780,21 +780,7 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             mCryptoSignatureUserId.setVisibility(View.INVISIBLE);
             mCryptoSignatureUserIdRest.setVisibility(View.INVISIBLE);
         } else {
-            //we force plain text, when the user wants to sign (without MIME)
-
-            if (mMessageFormat != MessageFormat.TEXT
-                    && !mUsePGPMimeCheckbox.isChecked()) {
-                mMessageFormat = MessageFormat.TEXT;
-                try {
-                    //only do this if we are quoting
-                    if (mSourceMessage != null) {
-                        populateUIWithQuotedMessage(mAccount.isDefaultQuotedTextShown());
-                    }
-                } catch (MessagingException e) {
-                    showOrHideQuotedText(QuotedTextMode.NONE);
-                    Log.e(K9.LOG_TAG, "Could not re-process source message; deleting quoted text to be safe.", e);
-                }
-            }
+            
             // if a signature key is selected, then the checkbox itself has no text
             mCryptoSignatureCheckbox.setText("");
             mCryptoSignatureCheckbox.setChecked(true);
@@ -1527,7 +1513,21 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             return;
         }
 
-        // TODO PGP/Mime signed-only mails are not supported yet
+        //we force plain text, when the user wants to sign (without MIME)
+        if (mMessageFormat != MessageFormat.TEXT
+                && !mUsePGPMimeCheckbox.isChecked() && (mCryptoSignatureCheckbox.isChecked() || mEncryptCheckbox.isChecked())) {
+            mMessageFormat = MessageFormat.TEXT;
+            try {
+                //only do this if we are quoting
+                if (mSourceMessage != null) {
+                    populateUIWithQuotedMessage(mAccount.isDefaultQuotedTextShown());
+                }
+            } catch (MessagingException e) {
+                showOrHideQuotedText(QuotedTextMode.NONE);
+                Log.e(K9.LOG_TAG, "Could not re-process source message; deleting quoted text to be safe.", e);
+            }
+        }
+
         if (mUsePGPMimeCheckbox.isChecked() && mCryptoSignatureCheckbox.isChecked() && !mEncryptCheckbox.isChecked()) {
             Toast.makeText(this, getString(R.string.pgp_mime_signed_only_messages_not_supported), Toast.LENGTH_LONG).show();
             return;
