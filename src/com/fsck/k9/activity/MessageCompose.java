@@ -781,9 +781,9 @@ public class MessageCompose extends K9Activity implements OnClickListener, OnFoc
             mCryptoSignatureUserIdRest.setVisibility(View.INVISIBLE);
         } else {
             //we force plain text, when the user wants to sign (without MIME)
+
             if (mMessageFormat != MessageFormat.TEXT
-                    && (mCryptoSignatureCheckbox.isChecked() || mEncryptCheckbox
-                        .isChecked()) && !mUsePGPMimeCheckbox.isChecked()) {
+                    && !mUsePGPMimeCheckbox.isChecked()) {
                 mMessageFormat = MessageFormat.TEXT;
                 try {
                     //only do this if we are quoting
