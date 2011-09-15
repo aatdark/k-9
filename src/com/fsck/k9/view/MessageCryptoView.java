@@ -1,15 +1,17 @@
 package com.fsck.k9.view;
 
+import java.io.ByteArrayOutputStream;
+
 import android.app.Activity;
 import android.content.Context;
 import android.net.Uri;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
-import android.widget.LinearLayout;
 import android.widget.*;
 import com.fsck.k9.K9;
 import com.fsck.k9.R;
+import com.fsck.k9.crypto.Apg;
 import com.fsck.k9.crypto.CryptoProvider;
 import com.fsck.k9.crypto.PgpData;
 import com.fsck.k9.mail.Flag;
@@ -114,7 +116,6 @@ public class MessageCryptoView extends LinearLayout {
                     if (part != null) {
                         data = MimeUtility.getTextFromPart(part);
                     }
-/*
                     // if PGP/Mime get signature
                     Part signaturePart = MimeUtility.findFirstPartByMimeType(
                                              message, "application/pgp-signature");
@@ -124,32 +125,30 @@ public class MessageCryptoView extends LinearLayout {
                             // TODO: this DOES NOT work! APG can't handle whole
                             // PGP/Mime signed messages!
                             ByteArrayOutputStream out = new ByteArrayOutputStream();
-
-                            message.writeTo(out);
+                            out.write("-----BEGIN PGP SIGNED MESSAGE-----\r\n".getBytes());
+                            out.write("Hash: SHA256\r\n\r\n".getBytes());
+                            MimeUtility.findFirstPartByMimeType(message, "multipart/alternative").getBody().writeTo(out);
+//                            MimeUtility.findFirstPartByMimeType(message, "text/plain").getBody().writeTo(out);
+                            signaturePart.getBody().writeTo(out);
 
                             // byte[] signature = getFileFromUri(sigUri);
+                            //TODO also enable for other CryptoProviders
                             ((Apg) cryptoProvider).checkSignedPgpMime(
                                 mActivity, out.toString(), pgpData);
                             return;
                         } catch (Exception e) {
                             // Wasn't able to check Signature, make Toast?
+                            e.printStackTrace();
                             return;
                         }
                     }
-*/
                     // check if there is a PGP/Mime encrypted part
                     Part encryptedPart = MimeUtility.findFirstPartByMimeType(
                                              message, "application/octet-stream");
-                    if (message.getContentType().contains("encrypted")
-                    && encryptedPart != null) {
-
+                    if (message.getContentType().contains("encrypted")  && encryptedPart != null) {
                         if (message.isSet(Flag.X_DOWNLOADED_FULL)) {
-
-                            Uri uri = ((LocalAttachmentBody) encryptedPart
-                                       .getBody()).getContentUri();
-                            cryptoProvider.decryptPgpMime(mActivity, uri,
-                                                          pgpData);
-
+                            Uri uri = ((LocalAttachmentBody) encryptedPart.getBody()).getContentUri();
+                            cryptoProvider.decryptPgpMime(mActivity, uri, pgpData);
                         } else {
                             Toast.makeText(mContext, R.string.download_message_before_decryption, Toast.LENGTH_LONG).show();
                         }
@@ -178,7 +177,7 @@ public class MessageCryptoView extends LinearLayout {
                 Part pgp = MimeUtility.findFirstPartByMimeType(message, "application/pgp-signature");
                 if (pgp != null) {
                     Toast.makeText(mContext, R.string.pgp_mime_verification_unsupported, Toast.LENGTH_LONG).show();
-                } 
+                }
             } catch (MessagingException e) {
             }
         }
