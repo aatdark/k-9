@@ -97,7 +97,7 @@ public class Apg extends CryptoProvider {
     public static final int ENCRYPT_MESSAGE = 0x21070002;
     public static final int SELECT_PUBLIC_KEYS = 0x21070003;
     public static final int SELECT_SECRET_KEY = 0x21070004;
-    
+
     private static final String TEMP_FILE_NAME = "deleteThisFile";
 
     public static Pattern PGP_MESSAGE =
@@ -571,27 +571,6 @@ public class Apg extends CryptoProvider {
         }
     }
 
-    /**
-     * TODO: DOES NOT WORK YET!
-     */
-    public boolean checkSignedPgpMime(Activity activity, String signedMessage, PgpData pgpData) {
-        android.content.Intent intent = new android.content.Intent(Apg.Intent.DECRYPT_AND_RETURN);
-        intent.putExtra(EXTRA_INTENT_VERSION, INTENT_VERSION);
-        intent.setType("text/plain");
-        // intent.setType("application/pgp-signature");
-        // intent.setData(uri);
-
-        try {
-            intent.putExtra(EXTRA_TEXT, signedMessage);
-            // intent.putExtra(EXTRA_DATA,);
-            activity.startActivityForResult(intent, Apg.DECRYPT_MESSAGE);
-            return true;
-        } catch (ActivityNotFoundException e) {
-            Toast.makeText(activity, R.string.error_activity_not_found, Toast.LENGTH_SHORT).show();
-            return false;
-        }
-    }
-
     @Override
     public boolean isEncrypted(Message message) {
         String data = null;
@@ -633,7 +612,9 @@ public class Apg extends CryptoProvider {
             Part part = MimeUtility.findFirstPartByMimeType(message, "application/pgp-signature");
             String mimeType = message.getHeader(MimeHeader.HEADER_CONTENT_TYPE)[0];
             if (mimeType.startsWith("multipart/signed")) {
-                return true;
+                //TODO the blocker for this is the new LocalStore
+                //return true;
+                return false;
             } else {
                 //check for PGP/Inline Encryption:
                 part = MimeUtility.findFirstPartByMimeType(message, "text/plain");

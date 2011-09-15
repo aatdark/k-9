@@ -17,6 +17,7 @@ import com.fsck.k9.crypto.PgpData;
 import com.fsck.k9.mail.Flag;
 import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.MessagingException;
+import com.fsck.k9.mail.Multipart;
 import com.fsck.k9.mail.Part;
 import com.fsck.k9.mail.internet.MimeUtility;
 import com.fsck.k9.mail.store.LocalStore.LocalAttachmentBody;
@@ -117,24 +118,19 @@ public class MessageCryptoView extends LinearLayout {
                         data = MimeUtility.getTextFromPart(part);
                     }
                     // if PGP/Mime get signature
-                    Part signaturePart = MimeUtility.findFirstPartByMimeType(
-                                             message, "application/pgp-signature");
+                    Part signaturePart = MimeUtility.findFirstPartByMimeType(message, "application/pgp-signature");
                     if (signaturePart != null) {
-
                         try {
-                            // TODO: this DOES NOT work! APG can't handle whole
-                            // PGP/Mime signed messages!
+                            //APG does not support PGP/Mime mails, so we have to reesemble them together
                             ByteArrayOutputStream out = new ByteArrayOutputStream();
                             out.write("-----BEGIN PGP SIGNED MESSAGE-----\r\n".getBytes());
                             out.write("Hash: SHA256\r\n\r\n".getBytes());
-                            MimeUtility.findFirstPartByMimeType(message, "multipart/alternative").getBody().writeTo(out);
-//                            MimeUtility.findFirstPartByMimeType(message, "text/plain").getBody().writeTo(out);
+
+                            // TODO get the Body Part (with all the MimeHeader values)
+                            // this will only work with the new localstore
                             signaturePart.getBody().writeTo(out);
 
-                            // byte[] signature = getFileFromUri(sigUri);
-                            //TODO also enable for other CryptoProviders
-                            ((Apg) cryptoProvider).checkSignedPgpMime(
-                                mActivity, out.toString(), pgpData);
+                            cryptoProvider.decrypt(mActivity, out.toString(), pgpData);
                             return;
                         } catch (Exception e) {
                             // Wasn't able to check Signature, make Toast?
@@ -174,6 +170,7 @@ public class MessageCryptoView extends LinearLayout {
             this.setVisibility(View.GONE);
             try {
                 // check for PGP/MIME signature
+                //TODO remove this when PGP/MIME works
                 Part pgp = MimeUtility.findFirstPartByMimeType(message, "application/pgp-signature");
                 if (pgp != null) {
                     Toast.makeText(mContext, R.string.pgp_mime_verification_unsupported, Toast.LENGTH_LONG).show();
