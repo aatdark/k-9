@@ -12,14 +12,13 @@ import com.fsck.k9.K9;
 import com.fsck.k9.R;
 import com.fsck.k9.activity.FolderInfoHolder;
 import com.fsck.k9.activity.MessageInfoHolder;
+import com.fsck.k9.crypto.CryptoProvider;
 import com.fsck.k9.mail.Address;
 import com.fsck.k9.mail.Flag;
 import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.Message.RecipientType;
-import com.fsck.k9.mail.internet.MimeHeader;
 import com.fsck.k9.mail.store.LocalStore.LocalMessage;
-import com.fsck.k9.helper.DateFormatter;
 
 public class MessageHelper {
 
@@ -89,11 +88,10 @@ public class MessageHelper {
             target.account = account.getDescription();
             target.uri = "email://messages/" + account.getAccountNumber() + "/" + m.getFolder().getName() + "/" + m.getUid();
 
-            /** check encryption **/
-//          CryptoProvider crypto = account.getCryptoProvider(); TODO: disable this feature if crypto instanceof None ?
-            String mimeType = m.getHeader(MimeHeader.HEADER_CONTENT_TYPE)[0];
-            target.isEncrypted = mimeType.startsWith("multipart/encrypted");
-            target.isSigned = mimeType.startsWith("multipart/signed");
+            /* check encryption */
+            CryptoProvider crypto = account.getCryptoProvider();
+            target.isEncrypted = crypto.isEncrypted(m);
+            target.isSigned = crypto.isSigned(m);
             
             
         } catch (MessagingException me) {

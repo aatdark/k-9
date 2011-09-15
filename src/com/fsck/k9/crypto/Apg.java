@@ -33,6 +33,7 @@ import com.fsck.k9.mail.Body;
 import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.MessagingException;
 import com.fsck.k9.mail.Part;
+import com.fsck.k9.mail.internet.MimeHeader;
 import com.fsck.k9.mail.internet.MimeMessage;
 import com.fsck.k9.mail.internet.MimeUtility;
 import com.fsck.k9.provider.SimpleFileProvider;
@@ -598,8 +599,8 @@ public class Apg extends CryptoProvider {
             //check for PGP/Mime Encryption:
             //TODO this will only work after changes to LocalStore
             Part part = MimeUtility.findFirstPartByMimeType(message, "application/pgp-encrypted");
-            part = MimeUtility.findPartByFilename(message, "encrypted.asc");
-            if (part != null) {
+            String mimeType = message.getHeader(MimeHeader.HEADER_CONTENT_TYPE)[0];
+            if (mimeType.startsWith("multipart/encrypted")) {
                 return true;
             } else {
                 //check for PGP/Inline Encryption:
@@ -630,7 +631,8 @@ public class Apg extends CryptoProvider {
         try {
             // check for PGP/Mime Encryption:
             Part part = MimeUtility.findFirstPartByMimeType(message, "application/pgp-signature");
-            if (part != null) {
+            String mimeType = message.getHeader(MimeHeader.HEADER_CONTENT_TYPE)[0];
+            if (mimeType.startsWith("multipart/signed")) {
                 return true;
             } else {
                 //check for PGP/Inline Encryption:
