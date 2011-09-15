@@ -596,7 +596,9 @@ public class Apg extends CryptoProvider {
         String data = null;
         try {
             //check for PGP/Mime Encryption:
+            //TODO this will only work after changes to LocalStore
             Part part = MimeUtility.findFirstPartByMimeType(message, "application/pgp-encrypted");
+            part = MimeUtility.findPartByFilename(message, "encrypted.asc");
             if (part != null) {
                 return true;
             } else {

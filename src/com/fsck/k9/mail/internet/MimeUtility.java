@@ -993,6 +993,35 @@ public class MimeUtility {
     }
 
     /**
+     * searches for an specific filename in the Part (Mime)
+     * for example: Content-Disposition: inline; filename="encrypted.asc"
+     * spaces between filename = " are not supported
+     * @param part the message part
+     * @param filename the filename to search for (exact match)
+     * @return the part with the given filename / null if not found
+     * @throws MessagingException
+     * @throws Exception
+     */
+    public static Part findPartByFilename(Part part, String filename) throws MessagingException {
+        if (part.getBody() instanceof Multipart) {
+            Multipart multipart = (Multipart)part.getBody();
+            for (int i = 0, count = multipart.getCount(); i < count; i++) {
+                BodyPart bodyPart = multipart.getBodyPart(i);
+                Part ret = findPartByFilename(bodyPart, filename);
+                if (ret != null) {
+                    return ret;
+                }
+            }
+        }
+        String hFilename = getHeaderParameter(part.getDisposition(), "filename");
+        if (hFilename != null) {
+            return part;
+        }
+        return null;
+    }
+
+
+    /**
       * Reads the Part's body and returns a String based on any charset conversion that needed
       * to be done.  Note, this <b>does not</b> return a text representation of HTML.
       * @param part The part containing a body
