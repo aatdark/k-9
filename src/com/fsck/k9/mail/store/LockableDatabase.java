@@ -393,6 +393,16 @@ public class LockableDatabase {
             if (mDb.getVersion() != mSchemaDefinition.getVersion()) {
                 mSchemaDefinition.doDbUpgrade(mDb);
             }
+            if (K9.PRAGMASYNCOFF) {
+                /*
+                 * dissable the database syncing, to speed up k9 no slow
+                 * SD-cards. This may lead to corrupted databases in case of
+                 * powercut. So default is faulse
+                 * Setting: Global -> Misceluise -> Database SYNC=off
+                 */
+                Log.w(K9.LOG_TAG, "PRAGMA synchronous=OFF");
+                mDb.execSQL("PRAGMA synchronous=OFF");
+            }
         } finally {
             unlockWrite();
         }

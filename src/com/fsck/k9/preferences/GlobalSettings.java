@@ -66,6 +66,9 @@ public class GlobalSettings {
         s.put("dateFormat", Settings.versions(
                 new V(1, new DateFormatSetting(DateFormatter.DEFAULT_FORMAT))
             ));
+        s.put("enablePragmaSyncOff", Settings.versions(
+                new V(1, new BooleanSetting(false))
+            ));
         s.put("enableDebugLogging", Settings.versions(
                 new V(1, new BooleanSetting(false))
             ));

@@ -99,6 +99,13 @@ public class K9 extends Application {
 
 
     /**
+     * disables the database syncing. This improves
+     * performance on slow SD-cards but may lead to corrupted databases
+     * in case of powercut. Its false per default
+     */
+    public static boolean PRAGMASYNCOFF = false;
+
+    /**
      * If this is enabled there will be additional logging information sent to
      * Log.d, including protocol dumps.
      * Controlled by Preferences at run-time
@@ -415,6 +422,8 @@ public class K9 extends Application {
     }
 
     public static void save(SharedPreferences.Editor editor) {
+
+        editor.putBoolean("enablePragmaSyncOff", K9.PRAGMASYNCOFF);
         editor.putBoolean("enableDebugLogging", K9.DEBUG);
         editor.putBoolean("enableSensitiveLogging", K9.DEBUG_SENSITIVE);
         editor.putString("backgroundOperations", K9.backgroundOps.toString());
@@ -574,6 +583,7 @@ public class K9 extends Application {
 
     public static void loadPrefs(Preferences prefs) {
         SharedPreferences sprefs = prefs.getPreferences();
+        PRAGMASYNCOFF = sprefs.getBoolean("enablePragmaSyncOff", false);
         DEBUG = sprefs.getBoolean("enableDebugLogging", false);
         DEBUG_SENSITIVE = sprefs.getBoolean("enableSensitiveLogging", false);
         mAnimations = sprefs.getBoolean("animations", true);
